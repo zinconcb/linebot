@@ -5,17 +5,25 @@ import os
 import sys
 import errno
 
+
 from features.CarAnalytics import LicencePlate
 
 from linebot import (
     LineBotApi, WebhookHandler
 )
 from linebot.exceptions import (
-    InvalidSignatureError
+    InvalidSignatureError, LineBotApiError
 )
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
-    ImageMessage, VideoMessage, AudioMessage, StickerMessage
+    SourceUser, SourceGroup, SourceRoom,
+    TemplateSendMessage, ConfirmTemplate, MessageTemplateAction,
+    ButtonsTemplate, ImageCarouselTemplate, ImageCarouselColumn, URITemplateAction,
+    PostbackTemplateAction, DatetimePickerTemplateAction,
+    CarouselTemplate, CarouselColumn, PostbackEvent,
+    StickerMessage, StickerSendMessage, LocationMessage, LocationSendMessage,
+    ImageMessage, VideoMessage, AudioMessage, FileMessage,
+    UnfollowEvent, FollowEvent, JoinEvent, LeaveEvent, BeaconEvent
 )
 
 import ptt
@@ -75,25 +83,109 @@ def callback():
 
     # handle webhook body
     try:
-        print('body :' , body)
+        print("body" + body)
+
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
 
     return 'OK'
+
+
+
+
+@handler.add(JoinEvent)
+def handle_join(event):
+   # group_id = event.source.group_id
+   # line_bot_api.get_group_member_profile(group_id,member_id)
+   # member_ids_res = line_bot_api.get_group_member_ids(group_id)
+   # print(member_ids_res.member_ids)
+   # print(member_ids_res.next)
+
+    try:
+       profile = line_bot_api.get_group_member_profile(
+           event.source.group_id,
+           'U8c9144cce38f797b77698267bf4307b1'
+       )
+       line_bot_api.reply_message(
+           event.reply_token,
+           [
+               TextSendMessage(text='สวัสดีค่า'),
+               StickerSendMessage(
+                   package_id=1,
+                   sticker_id=2
+               )
+           ]
+       )  
+
+    except LineBotApiError as e:
+       print(e.status_code)
+       print(e.error.message)
+       print(e.error.details)
+       line_bot_api.reply_message(
+           event.reply_token,
+           [
+               TextSendMessage(text='หัวหน้าไม่อยู่ในห้องนี้\nไปละค่ะ\nบัย'),
+               StickerSendMessage(
+                   sticker_id=2
+               )
+           ]
+       )
+       line_bot_api.leave_group(event.source.group_id) 
+
+
 @handler.add(MessageEvent, message=StickerMessage)
 def handle_sticker_message(event):
    # Handle webhook verification
-    if event.reply_token == 'ffffffffffffffffffffffffffffffff':
-       return 
+    print("Sticker Message")
+    if event.reply_token == "ffffffffffffffffffffffffffffffff":
+       return
+
+    line_bot_api.reply_message(
+       event.reply_token,
+       StickerSendMessage(
+           package_id=event.message.package_id,
+           sticker_id=event.message.sticker_id
+       )
+    )
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     global latest_image_path
 
-    # Handle webhook verification
+
+   # Handle webhook verification
     if event.reply_token == '00000000000000000000000000000000':
-       return 
+       return 'OK'
+       
+    if event.message.text == 'ออกไปได้แล้ว':
+       if isinstance(event.source,SourceGroup):
+           if event.source.user_id == 'U8c9144cce38f797b77698267bf4307b1':
+               line_bot_api.reply_message(
+                   event.reply_token,
+                   [
+                        TextSendMessage(text="บายบ๊ายจ้า"),
+                        StickerSendMessage(
+                            package_id=1,
+                            sticker_id=1
+                        )
+                       
+                    ]
+               )
+               line_bot_api.leave_group(event.source.group_id)
+           else:
+               line_bot_api.reply_message(
+                   event.reply_token,
+                   [
+                        TextSendMessage(text="ไม่! ไม่ออกเว้ย"),
+                        StickerSendMessage(
+                            package_id=1,
+                            sticker_id=6
+                        )
+                       
+                    ]
+                   
+               )
 
     if event.message.text == 'ราคาน้ำมัน':
         l = ptt.get_prices()
@@ -124,7 +216,7 @@ def handle_message(event):
             print ('Exception:',type(e),e)
             line_bot_api.push_message(
                 event.source.user_id, [
-                    TextSendMessage(text='ไม่สามารถวิเคราห์รูปได้')
+                    TextSendMessage(text='ไม่สามารถวิเคราะห์รูปได้')
                 ])
 
     else:
